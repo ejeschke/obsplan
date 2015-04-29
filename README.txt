@@ -15,6 +15,6 @@ License:
     Please see the file LICENSE.txt for details.
    
 Documentation:
-    http://nbviewer.com/
+    http://nbviewer.ipython.org/gist/ejeschke/bcf734bdfc599fb69445
 
 
