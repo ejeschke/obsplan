@@ -114,7 +114,7 @@ class Observer(object):
             site.horizon = math.radians(horizon_deg)
         else:
             site.horizon = self.horizon
-        site.epoch = 2000.0
+        #site.epoch = ephem.Date("2000/1/1 12:00:00")
         if date == None:
             date = datetime.now()
             date.replace(tzinfo=self.tz_utc)
