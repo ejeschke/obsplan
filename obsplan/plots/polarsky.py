@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     start_time = datetime.strptime("2015-03-27 20:05:00",
                                    "%Y-%m-%d %H:%M:%S")
-    start_time = start_time.replace(tzinfo=tz)
+    start_time = tz.localize(start_time)
 
     plot.plot_targets(site, [entity.moon, entity.sun, tgt3],
                       start_time, ['white', 'yellow', 'green'])

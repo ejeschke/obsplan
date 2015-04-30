@@ -141,9 +141,8 @@ class Observer(object):
         for fmt in formats:
             try:
                 date = datetime.strptime(date_str, fmt)
-                timetup = tuple(date.timetuple()[:6])
-                # re-express as timezone
-                date = datetime(*timetup, tzinfo=timezone)
+                # Localize to the requested timezone
+                date = timezone.localize(date)
                 return date
 
             except ValueError as e:
@@ -349,8 +348,8 @@ class Observer(object):
     def local2utc(self, date_s):
         """Convert local time to UTC"""
         y, m, d = date_s.split('/')
-        tlocal = datetime(int(y), int(m), int(d), 12, 0, 0,
-                          tzinfo=self.tz_local)
+        tlocal = datetime(int(y), int(m), int(d), 12, 0, 0)
+        tlocal = self.tz_local.localize(tlocal)
         r_date = ephem.Date(tlocal.astimezone(self.tz_utc))
         return r_date
 

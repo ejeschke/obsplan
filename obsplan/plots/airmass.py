@@ -183,7 +183,7 @@ if __name__ == '__main__':
 
     start_time = datetime.strptime("2015-03-30 18:30:00",
                                    "%Y-%m-%d %H:%M:%S")
-    start_time = start_time.replace(tzinfo=tz)
+    start_time = tz.localize(start_time)
     t = start_time
     # if schedule starts after midnight, change start date to the
     # day before
