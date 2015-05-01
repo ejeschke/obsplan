@@ -30,7 +30,8 @@ class TestEntity01(unittest.TestCase):
 
     def test_get_date0(self):
         time1 = self.obs.get_date("2014-04-15 19:00")
-        time2 = datetime(2014, 04, 15, 19, 0, 0, tzinfo=self.hst)
+        time2 = datetime(2014, 04, 15, 19, 0, 0)
+        time2 = self.hst.localize(time2)
         self.assert_(time1 == time2)
 
     def test_get_date1(self):
@@ -47,8 +48,8 @@ class TestEntity01(unittest.TestCase):
     def test_observable_1(self):
         # vega should be visible during this period
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-29 04:00")
-        time2 = self.obs.get_date("2014-04-29 05:00")
+        time1 = self.obs.get_date("2014-04-29 04:30")
+        time2 = self.obs.get_date("2014-04-29 05:30")
         is_obs, t1, t2 = self.obs.observable(tgt, time1, time2,
                                              15.0, 85.0, 59.9*60)
         ## print((1, is_obs,
@@ -60,8 +61,8 @@ class TestEntity01(unittest.TestCase):
         # vega should be visible near the end but not in the beginning
         # during this period (rising)
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-28 22:00")
-        time2 = self.obs.get_date("2014-04-28 23:00")
+        time1 = self.obs.get_date("2014-04-28 22:30")
+        time2 = self.obs.get_date("2014-04-28 23:30")
         is_obs, t1, t2 = self.obs.observable(tgt, time1, time2, 15.0, 85.0,
                                              60*45)  # 45 min ok
         self.assert_(is_obs == True)
@@ -70,8 +71,8 @@ class TestEntity01(unittest.TestCase):
         # vega should be visible near the end but not in the beginning
         # during this period (rising)
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-28 22:00")
-        time2 = self.obs.get_date("2014-04-28 23:00")
+        time1 = self.obs.get_date("2014-04-28 22:30")
+        time2 = self.obs.get_date("2014-04-28 23:30")
         is_obs, t1, t2 = self.obs.observable(tgt, time1, time2, 15.0, 85.0,
                                               60*50)  # 50 min NOT ok
         self.assert_(is_obs == False)
@@ -80,8 +81,8 @@ class TestEntity01(unittest.TestCase):
         # vega should be visible near the beginning but not near the end
         # during this period (setting)
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-29 09:00")
-        time2 = self.obs.get_date("2014-04-29 10:00")
+        time1 = self.obs.get_date("2014-04-29 09:30")
+        time2 = self.obs.get_date("2014-04-29 10:30")
         is_obs, t1, T2 = self.obs.observable(tgt, time1, time2, 15.0, 85.0,
                                              60*30)  # 30 min ok
         self.assert_(is_obs == True)
@@ -90,8 +91,8 @@ class TestEntity01(unittest.TestCase):
         # vega should be visible near the beginning but not near the end
         # during this period (setting)
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-29 09:00")
-        time2 = self.obs.get_date("2014-04-29 10:00")
+        time1 = self.obs.get_date("2014-04-29 09:30")
+        time2 = self.obs.get_date("2014-04-29 10:30")
         is_obs, t1, t2 = self.obs.observable(tgt, time1, time2, 15.0, 85.0,
                                              60*45)  # 45 min NOT ok
         self.assert_(is_obs == False)
@@ -100,8 +101,8 @@ class TestEntity01(unittest.TestCase):
         # vega should be visible near the beginning but not near the end
         # during this period (setting)
         tgt = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
-        time1 = self.obs.get_date("2014-04-29 09:30")
-        time2 = self.obs.get_date("2014-04-29 10:30")
+        time1 = self.obs.get_date("2014-04-29 10:00")
+        time2 = self.obs.get_date("2014-04-29 11:00")
         is_obs, t1, t2 = self.obs.observable(tgt, time1, time2, 15.0, 85.0,
                                              60*15)  # 15 min NOT ok
         self.assert_(is_obs == False)
@@ -117,7 +118,7 @@ class TestEntity01(unittest.TestCase):
     def test_distance_1(self):
         tgt1 = entity.StaticTarget(name="vega", ra=vega[0], dec=vega[1])
         tgt2 = entity.StaticTarget(name="altair", ra=altair[0], dec=altair[1])
-        time1 = self.obs.get_date("2010-10-18 22:00")
+        time1 = self.obs.get_date("2010-10-18 22:30")
         d_alt, d_az = self.obs.distance(tgt1, tgt2, time1)
         self.assertEquals(str(d_alt)[:7], '-9.9657')
         self.assertEquals(str(d_az)[:7], '36.1910')
