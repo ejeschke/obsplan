@@ -21,9 +21,9 @@ import numpy
 class BaseTarget(object):
     pass
 
-class StaticTarget(object):
+class SiderealTarget(object):
     def __init__(self, name=None, ra=None, dec=None, equinox=2000.0):
-        super(StaticTarget, self).__init__()
+        super(SiderealTarget, self).__init__()
         self.name = name
         self.ra = ra
         self.dec = dec
@@ -72,6 +72,104 @@ class StaticTarget(object):
         self.__dict__.update(state)
         self.body = ephem.readdb(self.xeph_line)
 
+
+class ObservableResult(object):
+    def __init__(self, **kwdargs):
+        self.__dict__.update(kwdargs)
+
+
+class Constraints(object):
+    """
+    Constraints describe the conditions under which a target can be
+    observed.
+    """
+    def __init__(self, time_start, time_stop,
+                 el_min_deg, el_max_deg, duration,
+                 airmass=None):
+        self.time_start = time_start
+        self.time_stop = time_stop
+        self.el_min_deg = el_min_deg
+        self.el_max_deg = el_max_deg
+        self.duration = duration
+        self.airmass = airmass
+
+    def observable(self, observer, target):
+        """
+        Return True if `target` is observable with our constraints
+        at `observer`.
+        """
+        # set observer's horizon to elevation for el_min or to achieve
+        # desired airmass
+        if self.airmass != None:
+            # compute desired altitude from airmass
+            alt_deg = misc.airmass2alt(self.airmass)
+            min_alt_deg = max(alt_deg, self.el_min_deg)
+        else:
+            min_alt_deg = self.el_min_deg
+
+        site = observer.get_site(date=self.time_start, horizon_deg=min_alt_deg)
+
+        d1 = observer.calc(target, self.time_start)
+
+        # TODO: worry about self.el_max_deg
+
+        # important: pyephem only deals with UTC!!
+        time_start_utc = ephem.Date(self.time_start.astimezone(observer.tz_utc))
+        time_stop_utc = ephem.Date(self.time_stop.astimezone(observer.tz_utc))
+        #print "period (UT): %s to %s" % (time_start_utc, time_stop_utc)
+
+        if d1.alt_deg >= min_alt_deg:
+            # body is above desired altitude at start of period
+            # so calculate next setting
+            time_rise = time_start_utc
+            time_set = site.next_setting(target.body, start=time_start_utc)
+            #print "body already up: set=%s" % (time_set)
+
+        else:
+            # body is below desired altitude at start of period
+            try:
+                time_rise = site.next_rising(target.body, start=time_start_utc)
+                time_set = site.next_setting(target.body, start=time_start_utc)
+            except ephem.NeverUpError:
+                return ObservationResult(observable=False, time_rise=None,
+                                         time_set=None)
+
+            #print "body not up: rise=%s set=%s" % (time_rise, time_set)
+            ## if time_rise < time_set:
+            ##     print "body still rising, below threshold"
+            ##     # <-- body is still rising, just not high enough yet
+            ## else:
+            ##     # <-- body is setting
+            ##     print "body setting, below threshold"
+            ##     # calculate rise time backward from end of period
+            ##     #time_rise = site.previous_rising(target.body, start=time_stop_utc)
+            ##     pass
+
+        if time_rise < time_start_utc:
+            raise AssertionError("time rise (%s) < time start (%s)" % (
+                time_rise, time_start))
+
+        # last observable time is setting or end of period,
+        # whichever comes first
+        time_end = min(time_set, time_stop_utc)
+        # calculate duration in seconds (subtracting two pyephem Date
+        # objects seems to give a fraction in days)
+        duration = (time_end - time_rise) * 86400.0
+        # object is observable as long as the duration that it is
+        # up is as long or longer than the time needed
+        ## diff = duration - float(self.duration)
+        ## can_obs = diff > -0.001
+        can_obs = duration >= self.duration
+        #print "can_obs=%s duration=%f needed=%f diff=%f" % (
+        #    can_obs, duration, self.duration, diff)
+
+        # convert time_rise back to a datetime (and add timezone
+        # info for easy conversion to other timezones)
+        time_rise = observer.tz_utc.localize(time_rise.datetime())
+        time_end = observer.tz_utc.localize(time_end.datetime())
+
+        return ObservableResult(observable=can_obs, time_rise=time_rise,
+                                time_set=time_end)
 
 class Observer(object):
     """
@@ -150,85 +248,11 @@ class Observer(object):
 
         raise e
 
-    def observable(self, target, time_start, time_stop,
-                   el_min_deg, el_max_deg, time_needed,
-                   airmass=None):
+    def observable(self, target, cts):
         """
-        Return True if `target` is observable between `time_start` and
-        `time_stop`, defined by whether it is between elevation `el_min`
-        and `el_max` during that period, and whether it meets the minimum
-        airmass.
+        Return True if `target` is observable with constraints `cts`.
         """
-        # set observer's horizon to elevation for el_min or to achieve
-        # desired airmass
-        if airmass != None:
-            # compute desired altitude from airmass
-            alt_deg = misc.airmass2alt(airmass)
-            min_alt_deg = max(alt_deg, el_min_deg)
-        else:
-            min_alt_deg = el_min_deg
-
-        site = self.get_site(date=time_start, horizon_deg=min_alt_deg)
-
-        d1 = self.calc(target, time_start)
-
-        # TODO: worry about el_max_deg
-
-        # important: pyephem only deals with UTC!!
-        time_start_utc = ephem.Date(time_start.astimezone(self.tz_utc))
-        time_stop_utc = ephem.Date(time_stop.astimezone(self.tz_utc))
-        #print "period (UT): %s to %s" % (time_start_utc, time_stop_utc)
-
-        if d1.alt_deg >= min_alt_deg:
-            # body is above desired altitude at start of period
-            # so calculate next setting
-            time_rise = time_start_utc
-            time_set = site.next_setting(target.body, start=time_start_utc)
-            #print "body already up: set=%s" % (time_set)
-
-        else:
-            # body is below desired altitude at start of period
-            try:
-                time_rise = site.next_rising(target.body, start=time_start_utc)
-                time_set = site.next_setting(target.body, start=time_start_utc)
-            except ephem.NeverUpError:
-                return (False, None, None)
-
-            #print "body not up: rise=%s set=%s" % (time_rise, time_set)
-            ## if time_rise < time_set:
-            ##     print "body still rising, below threshold"
-            ##     # <-- body is still rising, just not high enough yet
-            ## else:
-            ##     # <-- body is setting
-            ##     print "body setting, below threshold"
-            ##     # calculate rise time backward from end of period
-            ##     #time_rise = site.previous_rising(target.body, start=time_stop_utc)
-            ##     pass
-
-        if time_rise < time_start_utc:
-            raise AssertionError("time rise (%s) < time start (%s)" % (
-                time_rise, time_start))
-
-        # last observable time is setting or end of period,
-        # whichever comes first
-        time_end = min(time_set, time_stop_utc)
-        # calculate duration in seconds (subtracting two pyephem Date
-        # objects seems to give a fraction in days)
-        duration = (time_end - time_rise) * 86400.0
-        # object is observable as long as the duration that it is
-        # up is as long or longer than the time needed
-        ## diff = duration - float(time_needed)
-        ## can_obs = diff > -0.001
-        can_obs = duration >= time_needed
-        #print "can_obs=%s duration=%f needed=%f diff=%f" % (
-        #    can_obs, duration, time_needed, diff)
-
-        # convert time_rise back to a datetime (and add timezone
-        # info for easy conversion to other timezones)
-        time_rise = self.tz_utc.localize(time_rise.datetime())
-        time_end = self.tz_utc.localize(time_end.datetime())
-
-        return (can_obs, time_rise, time_end)
+        return cts.observable(self, target)
 
     def distance(self, tgt1, tgt2, time_start):
         """
@@ -636,25 +660,25 @@ class CalculationResult(object):
         return (delta_alt, delta_az)
 
 # define some common bodies
-moon = StaticTarget(name="Moon")
+moon = SiderealTarget(name="Moon")
 moon.body = ephem.Moon()
-sun = StaticTarget(name="Sun")
+sun = SiderealTarget(name="Sun")
 sun.body = ephem.Sun()
-mercury = StaticTarget(name="Mercury")
+mercury = SiderealTarget(name="Mercury")
 mercury.body = ephem.Mercury()
-venus = StaticTarget(name="Venus")
+venus = SiderealTarget(name="Venus")
 venus.body = ephem.Venus()
-mars = StaticTarget(name="Mars")
+mars = SiderealTarget(name="Mars")
 mars.body = ephem.Mars()
-jupiter = StaticTarget(name="Jupiter")
+jupiter = SiderealTarget(name="Jupiter")
 jupiter.body = ephem.Jupiter()
-saturn = StaticTarget(name="Saturn")
+saturn = SiderealTarget(name="Saturn")
 saturn.body = ephem.Saturn()
-uranus = StaticTarget(name="Uranus")
+uranus = SiderealTarget(name="Uranus")
 uranus.body = ephem.Uranus()
-neptune = StaticTarget(name="Neptune")
+neptune = SiderealTarget(name="Neptune")
 neptune.body = ephem.Neptune()
-pluto = StaticTarget(name="Pluto")
+pluto = SiderealTarget(name="Pluto")
 pluto.body = ephem.Pluto()
 
 
